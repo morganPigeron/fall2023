@@ -27,6 +27,7 @@ struct Drone {
     battery : i32,
 }
 
+#[derive(Debug, Clone)]
 struct Scan {
     drone_id: i32,
     creature_id: i32,
@@ -54,8 +55,34 @@ impl GameState {
     fn get_my_drone_count(&self) -> usize {
         return self.my_drone.len();
     }
-}
 
+    fn get_drone_scan(&self, drone_id: i32) -> Vec<Scan> {
+        return self.drone_scan
+            .iter()
+            .filter(|s| s.drone_id == drone_id)
+            .cloned()
+            .collect();
+    } 
+
+    fn is_four_of_a_kind(&self, fishes: &Vec<Scan>, creatures: &Vec<Creature>) -> bool {
+        
+        return false;
+    }
+
+    fn do_i_need_to_save(&self, drone_id: i32, creatures: &Vec<Creature>) -> bool {
+
+        //if I have all fish from a type
+        let my_fishes = self.get_drone_scan(drone_id);
+        let other_scan = self.foe_scan;
+
+        if self.is_four_of_a_kind(&my_fishes, creatures) && 
+           !self.is_four_of_a_kind(&other_scan, creatures) {
+            return true;
+        }
+        
+        return false;
+    }
+}
 
 
 fn init() -> Vec<Creature> {
@@ -252,7 +279,9 @@ fn main() {
             // Write an action using println!("message...");
             // To debug: eprintln!("Debug message...");
 
+
             let drone = game_state.my_drone.get(i).expect("plz codingame");
+            eprintln!("my scan {:#?}", game_state.get_drone_scan(drone.drone_id));
 
             let mut dephasage = 300f64;
             let a = 2_800f64; //amplitude
