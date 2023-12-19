@@ -1,4 +1,4 @@
-use std::io;
+use std::{io, f64::consts::PI};
 
 macro_rules! parse_input {
     ($x:expr, $t:ident) => ($x.trim().parse::<$t>().unwrap())
@@ -56,25 +56,7 @@ impl GameState {
     }
 }
 
-/**
- * Score points by scanning valuable fish faster than your opponent.
- **/ 
-fn main() {
 
-    let creatures = init();
-    let game_state = get_game_state();
-
-    // game loop
-    loop {
-        for i in 0..game_state.get_my_drone_count() {
-
-            // Write an action using println!("message...");
-            // To debug: eprintln!("Debug message...");
-
-            println!("WAIT 1"); // MOVE <x> <y> <light (1|0)> | WAIT <light (1|0)>
-        }
-    }
-}
 
 fn init() -> Vec<Creature> {
 
@@ -250,6 +232,61 @@ fn get_game_state() -> GameState {
         radar_blip,
     };
 }
+
+/**
+ * Score points by scanning valuable fish faster than your opponent.
+ **/ 
+fn main() {
+
+    let creatures = init();
+    
+    let mut direction = 1;
+    let mut debounce = 0;
+    // game loop
+    loop {
+
+        let game_state = get_game_state();
+        
+        for i in 0..game_state.get_my_drone_count() {
+
+            // Write an action using println!("message...");
+            // To debug: eprintln!("Debug message...");
+
+            let drone = game_state.my_drone.get(i).expect("plz codingame");
+
+            let mut dephasage = 300f64;
+            let a = 2_800f64; //amplitude
+            let b = 2f64 * PI / 5_000f64; //period
+            let k = 6_200f64; //axe
+            if        drone.drone_x + 600 > 10000 {
+                direction = -1;
+            } else if drone.drone_x - 600 < 0 {
+                direction = 1;
+            }
+
+            let next_x: f64 = (drone.drone_x as f64 + (600f64 * direction as f64));
+            let y: f64;
+            if direction < 0 {
+                y = (-1.0*a) * (b*next_x).sin() + k;
+            }
+            else {
+                y = a * (b*next_x).sin() + k;
+            }
+
+            let mut light = 0;
+            debounce += 1;
+
+            if drone.battery > 5 && drone.drone_y > 3_000 && debounce > 10{
+                light = 1;
+                debounce = 0;
+            }
+            println!("MOVE {} {} {}", next_x.round() as i32, y.round() as i32, light); // MOVE <x> <y> <light (1|0)> | WAIT <light (1|0)>
+
+
+        }
+    }
+}
+
 /*
    Protocole de jeu
    Entrées d'Initialisation
