@@ -65,7 +65,28 @@ impl GameState {
     } 
 
     fn is_four_of_a_kind(&self, fishes: &Vec<Scan>, creatures: &Vec<Creature>) -> bool {
+
+        let mut a = 0;
+        let mut b = 0;
+        let mut c = 0;
+
+        for fish in fishes {
+            let creature = creatures.iter().find(|f| f.id == fish.creature_id).expect("lol");
+
+            match creature.creature_type {
+                0 => a += 1,
+                1 => b += 1,
+                2 => c += 1,
+                _ => (), 
+            }
+            
+        }
         
+        eprintln!("a: {}, b: {}, c:{}", a, b, c);
+
+        if a >= 4 || b >= 4 || c >= 4 {
+            return true;
+        }
         return false;
     }
 
@@ -73,13 +94,15 @@ impl GameState {
 
         //if I have all fish from a type
         let my_fishes = self.get_drone_scan(drone_id);
-        let other_scan = self.foe_scan;
+        eprintln!("my fishes: {:?}", my_fishes);
+        let other_scan = self.get_drone_scan(self.foe_drone.first().expect("plz").drone_id);
 
-        if self.is_four_of_a_kind(&my_fishes, creatures) && 
-           !self.is_four_of_a_kind(&other_scan, creatures) {
+        if self.is_four_of_a_kind(&my_fishes, creatures) { 
+            eprintln!("save");
             return true;
         }
-        
+
+        eprintln!("not save");
         return false;
     }
 }
@@ -150,7 +173,7 @@ fn get_game_state() -> GameState {
         let mut input_line = String::new();
         io::stdin().read_line(&mut input_line).unwrap();
         let inputs = input_line.split(" ").collect::<Vec<_>>();
-        
+
         let drone_id = parse_input!(inputs[0], i32);
         let drone_x = parse_input!(inputs[1], i32);
         let drone_y = parse_input!(inputs[2], i32);
@@ -188,7 +211,7 @@ fn get_game_state() -> GameState {
             battery, 
         });
     }
-    
+
     let mut drone_scan = Vec::new();
     let mut input_line = String::new();
     io::stdin().read_line(&mut input_line).unwrap();
@@ -266,14 +289,15 @@ fn get_game_state() -> GameState {
 fn main() {
 
     let creatures = init();
-    
+
     let mut direction = 1;
     let mut debounce = 0;
+    let mut already_saved = false;
     // game loop
     loop {
 
         let game_state = get_game_state();
-        
+
         for i in 0..game_state.get_my_drone_count() {
 
             // Write an action using println!("message...");
@@ -281,7 +305,7 @@ fn main() {
 
 
             let drone = game_state.my_drone.get(i).expect("plz codingame");
-            eprintln!("my scan {:#?}", game_state.get_drone_scan(drone.drone_id));
+            //eprintln!("my scan {:#?}", game_state.get_drone_scan(drone.drone_id));
 
             let mut dephasage = 300f64;
             let a = 2_800f64; //amplitude
@@ -309,9 +333,15 @@ fn main() {
                 light = 1;
                 debounce = 0;
             }
-            println!("MOVE {} {} {}", next_x.round() as i32, y.round() as i32, light); // MOVE <x> <y> <light (1|0)> | WAIT <light (1|0)>
 
-
+            if !already_saved && game_state.do_i_need_to_save(drone.drone_id, &creatures) {
+                if drone.drone_y < 500 {
+                    already_saved = true;
+                }
+                println!("MOVE {} {} {}", drone.drone_x, 450, 0);
+            } else {
+                println!("MOVE {} {} {}", next_x.round() as i32, y.round() as i32, light);
+            }
         }
     }
 }
