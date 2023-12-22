@@ -18,7 +18,7 @@ struct VisibleCreature {
     creature_vy: i32,
 }
 
-
+#[derive(Clone, Copy)]
 struct Drone {
     drone_id: i32,
     drone_x : i32,
@@ -27,7 +27,7 @@ struct Drone {
     battery : i32,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 struct Scan {
     drone_id: i32,
     creature_id: i32,
@@ -51,6 +51,83 @@ struct GameState {
     radar_blip: Vec<Blip>,
 }
 
+struct DroneBehavior {
+    drone_state: Drone,
+    saved: bool,
+    will_save: bool,
+    direction: i32,
+    debounce: i32,
+}
+
+impl DroneBehavior {
+    fn new(state: Drone) -> Self {
+        return Self {
+            drone_state: state.clone(),
+            will_save: false,
+            saved: false,
+            direction: 1,
+            debounce: 0,
+        };
+    }
+
+    fn behave(&mut self, game_state: &GameState, creatures: &Vec<Creature>) {
+
+        let mut dephasage = 300f64;
+        let a = 2_800f64; //amplitude
+        let b = 2f64 * PI / 5_000f64; //period
+        let k = 6_200f64; //axe
+
+        if        self.drone_state.drone_x + 600 > 10000 {
+            eprint!(" -1 ");
+            self.direction = -1;
+        } else if self.drone_state.drone_x - 600 < 0 {
+            eprint!("  1 ");
+            self.direction = 1;
+        }
+
+        let next_x: f64 = self.drone_state.drone_x as f64 + (600f64 * self.direction as f64);
+        let y: f64;
+        if self.direction < 0 {
+            y = (-1.0*a) * (b*next_x).sin() + k;
+        }
+        else {
+            y = a * (b*next_x).sin() + k;
+        }
+
+        let mut light = 0;
+        self.debounce += 1;
+
+        if self.drone_state.battery > 5 && self.drone_state.drone_y > 3_000 && self.debounce > 10 {
+            light = 1;
+            self.debounce = 0;
+        }
+
+        if game_state.do_i_need_to_save(self.drone_state.drone_id, creatures) || self.will_save {
+            self.will_save = true;
+            if self.drone_state.drone_y < 500 {
+                self.will_save = false;
+            }
+            println!("MOVE {} {} {} I will save", self.drone_state.drone_x, 450, 0);
+        } else {
+            println!("MOVE {} {} {} Searching", next_x.round() as i32, y.round() as i32, light);
+        }
+    
+        eprintln!("id:{};will_save:{};direction:{};debounce:{},x:{},y:{}", 
+                  self.drone_state.drone_id,
+                  self.will_save,
+                  self.direction,
+                  self.debounce,
+                  self.drone_state.drone_x,
+                  self.drone_state.drone_y,
+                  );
+    }
+}
+
+fn get_drone_by_id<'a>(id: i32, drones: &'a mut Vec<DroneBehavior>) -> &'a mut DroneBehavior {
+    drones.iter_mut().find(|d| d.drone_state.drone_id == id).expect("id given by codingame")
+}
+
+
 impl GameState {
     fn get_my_drone_count(&self) -> usize {
         return self.my_drone.len();
@@ -65,11 +142,11 @@ impl GameState {
     } 
 
     fn get_my_drones_scan(&self) -> Vec<Scan> {
-        return self.drone_scan
+        self.drone_scan
             .iter()
             .filter(|s| self.my_drone.iter().filter(|d| d.drone_id == s.drone_id).count() > 0) 
             .cloned()
-            .collect();
+            .collect()
     } 
 
     fn is_four_of_a_kind(&self, fishes: &Vec<Scan>, creatures: &Vec<Creature>) -> bool {
@@ -77,20 +154,22 @@ impl GameState {
         let mut a = 0;
         let mut b = 0;
         let mut c = 0;
+        
+        let mut scanned: Vec<i32> = fishes.iter().map(|f| f.creature_id).collect();
+        scanned.sort();
+        scanned.dedup();
 
-        for fish in fishes {
-            let creature = creatures.iter().find(|f| f.id == fish.creature_id).expect("lol");
-
+        for fish in &scanned {
+            let creature = creatures.iter().find(|f| f.id == *fish).expect("lol");
             match creature.creature_type {
                 0 => a += 1,
                 1 => b += 1,
                 2 => c += 1,
                 _ => (), 
             }
-            
         }
         
-        eprintln!("a: {}, b: {}, c:{}", a, b, c);
+        assert!(a <= 4 && b <= 4 && c <= 4, "fishes {:#?}" , scanned);
 
         if a >= 4 || b >= 4 || c >= 4 {
             return true;
@@ -99,14 +178,11 @@ impl GameState {
     }
 
     fn do_i_need_to_save(&self, drone_id: i32, creatures: &Vec<Creature>) -> bool {
-
         //if I have all fish from a type
         let my_fishes = self.get_my_drones_scan();
-        if self.is_four_of_a_kind(&my_fishes, creatures) { 
-            eprintln!("save");
+        if self.is_four_of_a_kind(&my_fishes, creatures) {
             return true;
         }
-        eprintln!("not save");
         return false;
     }
 }
@@ -119,60 +195,24 @@ impl GameState {
 fn main() {
 
     let creatures = init();
+    let mut drones_behavior = Vec::new();
 
-    let mut direction = 1;
-    let mut debounce = 0;
-    let mut already_saved = vec![false, false, false, false];    // game loop
     loop {
 
         let game_state = get_game_state();
 
         for i in 0..game_state.get_my_drone_count() {
 
-            // Write an action using println!("message...");
-            // To debug: eprintln!("Debug message...");
-
-
             let drone = game_state.my_drone.get(i).expect("plz codingame");
             //eprintln!("my scan {:#?}", game_state.get_drone_scan(drone.drone_id));
 
-            let mut dephasage = 300f64;
-            let a = 2_800f64; //amplitude
-            let b = 2f64 * PI / 5_000f64; //period
-            let k = 6_200f64; //axe
-            if        drone.drone_x + 600 > 10000 {
-                direction = -1;
-            } else if drone.drone_x - 600 < 0 {
-                direction = 1;
-            }
-
-            let next_x: f64 = (drone.drone_x as f64 + (600f64 * direction as f64));
-            let y: f64;
-            if direction < 0 {
-                y = (-1.0*a) * (b*next_x).sin() + k;
-            }
-            else {
-                y = a * (b*next_x).sin() + k;
-            }
-
-            let mut light = 0;
-            debounce += 1;
-
-            if drone.battery > 5 && drone.drone_y > 3_000 && debounce > 10 {
-                light = 1;
-                debounce = 0;
-            }
-
-            if !already_saved[drone.drone_id as usize] && game_state.do_i_need_to_save(drone.drone_id, &creatures) {
-                eprintln!("need to save with drone {}", drone.drone_id);
-                if drone.drone_y < 500 {
-                   eprintln!("saved! drone {}", drone.drone_id);
-                   already_saved[drone.drone_id as usize] = true; 
-                }
-                println!("MOVE {} {} {}", drone.drone_x, 450, 0);
-            } else {
-                println!("MOVE {} {} {}", next_x.round() as i32, y.round() as i32, light);
-            }
+            //init or update
+            if drones_behavior.len() < game_state.get_my_drone_count() {
+                drones_behavior.push(DroneBehavior::new(drone.clone()));
+            } 
+            let mut drone_behavior = get_drone_by_id(drone.drone_id, &mut drones_behavior);
+            drone_behavior.drone_state = drone.clone();
+            drone_behavior.behave(&game_state, &creatures);
         }
     }
 }
