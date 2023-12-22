@@ -52,6 +52,7 @@ struct GameState {
     radar_blip: Vec<Blip>,
 }
 
+#[derive(Clone)]
 struct DroneBehavior {
     drone_state: Drone,
     saved: bool,
@@ -227,7 +228,11 @@ fn main() {
 
             //init or update
             if drones_behavior.len() < game_state.get_my_drone_count() {
-                drones_behavior.push(DroneBehavior::new(drone.clone()));
+                let mut d = DroneBehavior::new(drone.clone());
+                if drones_behavior.len() % 2 == 0 {
+                   d.direction = -1 * d.direction; 
+                }
+                drones_behavior.push(d.clone());
             } 
             let mut drone_behavior = get_drone_by_id(drone.drone_id, &mut drones_behavior);
             drone_behavior.drone_state = drone.clone();
