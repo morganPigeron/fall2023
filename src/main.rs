@@ -33,6 +33,7 @@ struct Scan {
     creature_id: i32,
 }
 
+#[derive(Debug, Clone)]
 struct Blip {
     drone_id: i32,
     creature_id: i32,
@@ -57,6 +58,7 @@ struct DroneBehavior {
     will_save: bool,
     direction: i32,
     debounce: i32,
+    blip: Vec<Blip>,
 }
 
 impl DroneBehavior {
@@ -67,10 +69,19 @@ impl DroneBehavior {
             saved: false,
             direction: 1,
             debounce: 0,
+            blip: Vec::new(),
         };
     }
 
+    fn set_my_blip(&mut self, game_state:&GameState) {
+        self.blip = game_state.radar_blip.iter().filter(|b| b.drone_id == self.drone_state.drone_id).cloned().collect();
+    }
+
     fn behave(&mut self, game_state: &GameState, creatures: &Vec<Creature>) {
+        
+        self.set_my_blip(game_state);
+        let mvp = game_state.get_mvp(creatures);
+        eprintln!("{:?}", mvp);
 
         let mut dephasage = 300f64;
         let a = 2_800f64; //amplitude
@@ -112,13 +123,12 @@ impl DroneBehavior {
             println!("MOVE {} {} {} Searching", next_x.round() as i32, y.round() as i32, light);
         }
     
-        eprintln!("id:{};will_save:{};direction:{};debounce:{},x:{},y:{}", 
+        eprintln!("id:{};will_save:{};direction:{};debounce:{},blip:{:?}", 
                   self.drone_state.drone_id,
                   self.will_save,
                   self.direction,
                   self.debounce,
-                  self.drone_state.drone_x,
-                  self.drone_state.drone_y,
+                  self.blip
                   );
     }
 }
@@ -184,6 +194,15 @@ impl GameState {
             return true;
         }
         return false;
+    }
+
+    fn get_mvp(&self, creatures: &Vec<Creature>) -> Vec<i32> {
+        let my_fishes = self.get_my_drones_scan();
+        let mut my_fishes: Vec<i32> = my_fishes.iter().map(|f| f.creature_id).collect();
+        my_fishes.sort();
+        my_fishes.dedup();
+        
+        creatures.iter().map(|c| c.id).filter(|c| !my_fishes.contains(c)).collect()
     }
 }
 
