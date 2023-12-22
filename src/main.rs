@@ -64,6 +64,14 @@ impl GameState {
             .collect();
     } 
 
+    fn get_my_drones_scan(&self) -> Vec<Scan> {
+        return self.drone_scan
+            .iter()
+            .filter(|s| self.my_drone.iter().filter(|d| d.drone_id == s.drone_id).count() > 0) 
+            .cloned()
+            .collect();
+    } 
+
     fn is_four_of_a_kind(&self, fishes: &Vec<Scan>, creatures: &Vec<Creature>) -> bool {
 
         let mut a = 0;
@@ -93,21 +101,125 @@ impl GameState {
     fn do_i_need_to_save(&self, drone_id: i32, creatures: &Vec<Creature>) -> bool {
 
         //if I have all fish from a type
-        let my_fishes = self.get_drone_scan(drone_id);
-        eprintln!("my fishes: {:?}", my_fishes);
-        let other_scan = self.get_drone_scan(self.foe_drone.first().expect("plz").drone_id);
-
+        let my_fishes = self.get_my_drones_scan();
         if self.is_four_of_a_kind(&my_fishes, creatures) { 
             eprintln!("save");
             return true;
         }
-
         eprintln!("not save");
         return false;
     }
 }
 
 
+
+/**
+ * Score points by scanning valuable fish faster than your opponent.
+ **/ 
+fn main() {
+
+    let creatures = init();
+
+    let mut direction = 1;
+    let mut debounce = 0;
+    let mut already_saved = vec![false, false, false, false];    // game loop
+    loop {
+
+        let game_state = get_game_state();
+
+        for i in 0..game_state.get_my_drone_count() {
+
+            // Write an action using println!("message...");
+            // To debug: eprintln!("Debug message...");
+
+
+            let drone = game_state.my_drone.get(i).expect("plz codingame");
+            //eprintln!("my scan {:#?}", game_state.get_drone_scan(drone.drone_id));
+
+            let mut dephasage = 300f64;
+            let a = 2_800f64; //amplitude
+            let b = 2f64 * PI / 5_000f64; //period
+            let k = 6_200f64; //axe
+            if        drone.drone_x + 600 > 10000 {
+                direction = -1;
+            } else if drone.drone_x - 600 < 0 {
+                direction = 1;
+            }
+
+            let next_x: f64 = (drone.drone_x as f64 + (600f64 * direction as f64));
+            let y: f64;
+            if direction < 0 {
+                y = (-1.0*a) * (b*next_x).sin() + k;
+            }
+            else {
+                y = a * (b*next_x).sin() + k;
+            }
+
+            let mut light = 0;
+            debounce += 1;
+
+            if drone.battery > 5 && drone.drone_y > 3_000 && debounce > 10 {
+                light = 1;
+                debounce = 0;
+            }
+
+            if !already_saved[drone.drone_id as usize] && game_state.do_i_need_to_save(drone.drone_id, &creatures) {
+                eprintln!("need to save with drone {}", drone.drone_id);
+                if drone.drone_y < 500 {
+                   eprintln!("saved! drone {}", drone.drone_id);
+                   already_saved[drone.drone_id as usize] = true; 
+                }
+                println!("MOVE {} {} {}", drone.drone_x, 450, 0);
+            } else {
+                println!("MOVE {} {} {}", next_x.round() as i32, y.round() as i32, light);
+            }
+        }
+    }
+}
+
+/*
+   Protocole de jeu
+   Entrées d'Initialisation
+   Première ligne : creatureCount un entier pour le nombre de créature en jeu.
+   Les creatureCount lignes suivantes : 3 entiers décrivants chaque créature :
+   creatureId l'id unique de la créature.
+   color (de 0 à 3) et type (de 0 à 2).
+   Entrées pour un tour de Jeu
+   myScore pour votre score actuel.
+   foeScore pour le score de votre adversaire.
+
+   myScanCount pour le nombre de vos scans.
+   Prochaines myScanCount lignes : creatureId l'identifiant de chaque créature scannée.
+
+   foeScanCount pour le nombre de scans de votre adversaire.
+   Prochaines foeScanCount lignes : creatureId l'identifiant de chaque créature scannée.
+
+   Pour votre drone :
+   droneId : l'identifiant de ce drone.
+   droneX et droneY : la position de ce drone.
+   battery : le niveau de batterie de ce drone.
+   Pour le drone de votre adversaire :
+   droneId : l'identifiant de ce drone.
+   droneX et droneY : la position de ce drone.
+   battery : le niveau de batterie de ce drone.
+
+   Pour chaque poisson :
+   creatureId : l'id unique de la créature.
+   creatureX et creatureY : la position de la créature.
+   creatureVx et creatureVy : la vitesse actuelle de la créature.
+   Les variables restantes peuvent être ignorées et seront utilisées dans des ligues ultérieures.
+   Sortie
+   Une ligne : une instruction valide pour votre drone :
+   MOVE x y light : fait bouger le drone vers (x,y), avec les moteurs allumés.
+   WAIT light. Les moteurs sont éteints. Le drone va couler mais peut toujours scanner les poissons aux alentours.
+   light à 1 pour activer la lumière augmentée, 0 sinon.
+   Contraintes
+   creatureCount = 12 pour cette ligue
+   myDroneCount = 1 pour cette ligue
+
+   Temps de réponse par tour ≤ 50ms
+   Temps de réponse pour le premier tour ≤ 1000ms
+   */
 fn init() -> Vec<Creature> {
 
     let mut creature = Vec::new();
@@ -186,6 +298,7 @@ fn get_game_state() -> GameState {
             drone_y, 
             emergency,
             battery, 
+
         });
     }
 
@@ -282,110 +395,3 @@ fn get_game_state() -> GameState {
         radar_blip,
     };
 }
-
-/**
- * Score points by scanning valuable fish faster than your opponent.
- **/ 
-fn main() {
-
-    let creatures = init();
-
-    let mut direction = 1;
-    let mut debounce = 0;
-    let mut already_saved = false;
-    // game loop
-    loop {
-
-        let game_state = get_game_state();
-
-        for i in 0..game_state.get_my_drone_count() {
-
-            // Write an action using println!("message...");
-            // To debug: eprintln!("Debug message...");
-
-
-            let drone = game_state.my_drone.get(i).expect("plz codingame");
-            //eprintln!("my scan {:#?}", game_state.get_drone_scan(drone.drone_id));
-
-            let mut dephasage = 300f64;
-            let a = 2_800f64; //amplitude
-            let b = 2f64 * PI / 5_000f64; //period
-            let k = 6_200f64; //axe
-            if        drone.drone_x + 600 > 10000 {
-                direction = -1;
-            } else if drone.drone_x - 600 < 0 {
-                direction = 1;
-            }
-
-            let next_x: f64 = (drone.drone_x as f64 + (600f64 * direction as f64));
-            let y: f64;
-            if direction < 0 {
-                y = (-1.0*a) * (b*next_x).sin() + k;
-            }
-            else {
-                y = a * (b*next_x).sin() + k;
-            }
-
-            let mut light = 0;
-            debounce += 1;
-
-            if drone.battery > 5 && drone.drone_y > 3_000 && debounce > 10{
-                light = 1;
-                debounce = 0;
-            }
-
-            if !already_saved && game_state.do_i_need_to_save(drone.drone_id, &creatures) {
-                if drone.drone_y < 500 {
-                    already_saved = true;
-                }
-                println!("MOVE {} {} {}", drone.drone_x, 450, 0);
-            } else {
-                println!("MOVE {} {} {}", next_x.round() as i32, y.round() as i32, light);
-            }
-        }
-    }
-}
-
-/*
-   Protocole de jeu
-   Entrées d'Initialisation
-   Première ligne : creatureCount un entier pour le nombre de créature en jeu.
-   Les creatureCount lignes suivantes : 3 entiers décrivants chaque créature :
-   creatureId l'id unique de la créature.
-   color (de 0 à 3) et type (de 0 à 2).
-   Entrées pour un tour de Jeu
-   myScore pour votre score actuel.
-   foeScore pour le score de votre adversaire.
-
-   myScanCount pour le nombre de vos scans.
-   Prochaines myScanCount lignes : creatureId l'identifiant de chaque créature scannée.
-
-   foeScanCount pour le nombre de scans de votre adversaire.
-   Prochaines foeScanCount lignes : creatureId l'identifiant de chaque créature scannée.
-
-   Pour votre drone :
-   droneId : l'identifiant de ce drone.
-   droneX et droneY : la position de ce drone.
-   battery : le niveau de batterie de ce drone.
-   Pour le drone de votre adversaire :
-   droneId : l'identifiant de ce drone.
-   droneX et droneY : la position de ce drone.
-   battery : le niveau de batterie de ce drone.
-
-   Pour chaque poisson :
-   creatureId : l'id unique de la créature.
-   creatureX et creatureY : la position de la créature.
-   creatureVx et creatureVy : la vitesse actuelle de la créature.
-   Les variables restantes peuvent être ignorées et seront utilisées dans des ligues ultérieures.
-   Sortie
-   Une ligne : une instruction valide pour votre drone :
-   MOVE x y light : fait bouger le drone vers (x,y), avec les moteurs allumés.
-   WAIT light. Les moteurs sont éteints. Le drone va couler mais peut toujours scanner les poissons aux alentours.
-   light à 1 pour activer la lumière augmentée, 0 sinon.
-   Contraintes
-   creatureCount = 12 pour cette ligue
-   myDroneCount = 1 pour cette ligue
-
-   Temps de réponse par tour ≤ 50ms
-   Temps de réponse pour le premier tour ≤ 1000ms
-   */
