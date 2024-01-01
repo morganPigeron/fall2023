@@ -1,9 +1,10 @@
-use std::{io, f64::consts::PI, cmp::Ordering};
-
 use itertools::Itertools;
+use std::{cmp::Ordering, f64::consts::PI, io};
 
 macro_rules! parse_input {
-    ($x:expr, $t:ident) => ($x.trim().parse::<$t>().unwrap())
+    ($x:expr, $t:ident) => {
+        $x.trim().parse::<$t>().unwrap()
+    };
 }
 
 fn calculate_angle(x1: f64, y1: f64, x2: f64, y2: f64) -> f64 {
@@ -38,8 +39,8 @@ struct Creature {
 
 struct VisibleCreature {
     creature_id: i32,
-    creature_x : i32,
-    creature_y : i32,
+    creature_x: i32,
+    creature_y: i32,
     creature_vx: i32,
     creature_vy: i32,
 }
@@ -56,10 +57,10 @@ impl VisibleCreature {
 #[derive(Clone, Copy)]
 struct Drone {
     drone_id: i32,
-    drone_x : i32,
-    drone_y : i32,
+    drone_x: i32,
+    drone_y: i32,
     emergency: i32,
-    battery : i32,
+    battery: i32,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -137,16 +138,37 @@ impl DroneBehavior {
         };
     }
 
+    fn x_i32(&self) -> i32 {
+        self.drone_state.drone_x
+    }
+
+    fn y_i32(&self) -> i32 {
+        self.drone_state.drone_y
+    }
+
+    fn x_f64(&self) -> f64 {
+        self.drone_state.drone_x as f64
+    }
+
+    fn y_f64(&self) -> f64 {
+        self.drone_state.drone_y as f64
+    }
+
     fn do_i_see_it(&self, creature: &VisibleCreature) -> bool {
-        let vx = creature.creature_x - self.drone_state.drone_x;
-        let vy = creature.creature_y - self.drone_state.drone_y;
+        let vx = creature.creature_x - self.x_i32();
+        let vy = creature.creature_y - self.y_i32();
         let dist = ((vx * vx + vy * vy) as f64).sqrt();
         eprintln!("dist {} with id {}", dist, creature.creature_id);
         dist <= 2_000.0
     }
 
-    fn set_my_blip(&mut self, game_state:&GameState) {
-        self.blip = game_state.radar_blip.iter().filter(|b| b.drone_id == self.drone_state.drone_id).cloned().collect();
+    fn set_my_blip(&mut self, game_state: &GameState) {
+        self.blip = game_state
+            .radar_blip
+            .iter()
+            .filter(|b| b.drone_id == self.drone_state.drone_id)
+            .cloned()
+            .collect();
     }
 
     fn behave(&mut self, game_state: &GameState, creatures: &Vec<Creature>) {
@@ -158,19 +180,18 @@ impl DroneBehavior {
         let b = 2f64 * PI / 5_000f64; //period
         let k = 6_200f64; //axe
 
-        if        self.drone_state.drone_x + 600 > 10000 {
+        if self.x_i32() + 600 > 10000 {
             self.direction = -1;
-        } else if self.drone_state.drone_x - 600 < 0 {
+        } else if self.x_i32() - 600 < 0 {
             self.direction = 1;
         }
 
-        let mut next_x: f64 = self.drone_state.drone_x as f64 + (600f64 * self.direction as f64);
+        let mut next_x: f64 = self.y_f64() + (600f64 * self.direction as f64);
         let mut y: f64;
         if self.direction < 0 {
-            y = (-1.0*a) * (b*next_x).sin() + k;
-        }
-        else {
-            y = a * (b*next_x).sin() + k;
+            y = (-1.0 * a) * (b * next_x).sin() + k;
+        } else {
+            y = a * (b * next_x).sin() + k;
         }
         // basic sinus movement end
 
@@ -178,45 +199,58 @@ impl DroneBehavior {
         let mvp = game_state.get_mvp(creatures);
         eprintln!("{:?}", mvp);
         if let Some(fish_id) = mvp.get(self.id as usize) {
-            if let Some(result) = self.blip.iter().find(|b| b.creature_id == *fish_id ) {
+            if let Some(result) = self.blip.iter().find(|b| b.creature_id == *fish_id) {
                 match result.radar {
                     Radar::TL => {
-                        next_x = (self.drone_state.drone_x - 600).into();
-                        y = (self.drone_state.drone_y - 600).into();
-                    },
+                        next_x = (self.x_i32() - 600).into();
+                        y = (self.y_i32() - 600).into();
+                    }
                     Radar::TR => {
-                        next_x = (self.drone_state.drone_x + 600).into();
-                        y = (self.drone_state.drone_y - 600).into();
-                    },
+                        next_x = (self.x_i32() + 600).into();
+                        y = (self.y_i32() - 600).into();
+                    }
                     Radar::BL => {
-                        next_x = (self.drone_state.drone_x - 600).into();
-                        y = (self.drone_state.drone_y + 600).into();
-                    },
+                        next_x = (self.x_i32() - 600).into();
+                        y = (self.y_i32() + 600).into();
+                    }
                     Radar::BR => {
-                        next_x = (self.drone_state.drone_x + 600).into();
-                        y = (self.drone_state.drone_y + 600).into();
-                    },
+                        next_x = (self.x_i32() + 600).into();
+                        y = (self.y_i32() + 600).into();
+                    }
                 }
             }
         }
-        
 
         //check if any visible creature is a monster
         let mut near_monsters = Vec::<&VisibleCreature>::new();
         for creature in &game_state.visible_creature {
             if creature.is_a_monster(creatures) && !self.is_escaping {
-
-                if !self.do_i_see_it(creature) { continue; }
+                if !self.do_i_see_it(creature) {
+                    continue;
+                }
                 near_monsters.push(creature);
 
                 self.log = self.log.clone() + " " + &format!("{}!", creature.creature_id);
 
-                let monster_v: (f64, f64) = ((creature.creature_vx - creature.creature_x).into(), (creature.creature_vy - creature.creature_y).into());
-                let monster_to_me: (f64, f64) = ((self.drone_state.drone_x - creature.creature_x).into(), (self.drone_state.drone_y - creature.creature_y).into());
-                let escape_dir: (f64, f64) = (monster_v.0 + monster_to_me.0, monster_v.1 + monster_to_me.1);
+                let monster_v: (f64, f64) = (
+                    (creature.creature_vx - creature.creature_x).into(),
+                    (creature.creature_vy - creature.creature_y).into(),
+                );
+                let monster_to_me: (f64, f64) = (
+                    (self.x_i32() - creature.creature_x).into(),
+                    (self.x_i32() - creature.creature_y).into(),
+                );
+                let escape_dir: (f64, f64) = (
+                    monster_v.0 + monster_to_me.0 + self.x_f64(),
+                    monster_v.1 + monster_to_me.1 + self.y_f64(),
+                );
 
-                next_x = (self.drone_state.drone_x + (escape_dir.0 as i32)).clamp(500, 9_500).into();
-                y = (self.drone_state.drone_y +(escape_dir.1 as i32)).clamp(500, 9_500).into();
+                next_x = (self.x_i32() + (escape_dir.0 as i32))
+                    .clamp(500, 9_500)
+                    .into();
+                y = (self.y_i32() + (escape_dir.1 as i32))
+                    .clamp(500, 9_500)
+                    .into();
 
                 self.is_escaping = true;
                 self.escape_pos = (next_x as i32, y as i32);
@@ -263,8 +297,8 @@ impl DroneBehavior {
                 */
             }
         }
-        
-        //need to escape 
+
+        //need to escape
         /*
         if near_monsters.len() > 1 {
             //find smallest angle between each monsters
@@ -283,7 +317,11 @@ impl DroneBehavior {
         //check if i need to flash
         let mut light = 0;
         self.debounce += 1;
-        if self.drone_state.battery > 5 && self.drone_state.drone_y > 3_000 && self.debounce > 10 && !self.is_escaping {
+        if self.drone_state.battery > 5
+            && self.y_i32() > 3_000
+            && self.debounce > 10
+            && !self.is_escaping
+        {
             light = 1;
             self.debounce = 0;
             self.log = self.log.clone() + " flash!";
@@ -291,41 +329,48 @@ impl DroneBehavior {
 
         //check if we escaped
         if self.is_escaping {
-            self.log = self.log.clone() + " escaping to " + &format!("{} {}", self.escape_pos.0, self.escape_pos.1);
+            self.log = self.log.clone()
+                + " escaping to "
+                + &format!("{} {}", self.escape_pos.0, self.escape_pos.1);
             next_x = self.escape_pos.0.into();
             y = self.escape_pos.1.into();
         }
-        if self.drone_state.drone_x == self.escape_pos.0 && self.drone_state.drone_y == self.escape_pos.1 {
+        if self.x_i32() == self.escape_pos.0 && self.y_i32() == self.escape_pos.1 {
             self.is_escaping = false;
         }
 
         //check if i need to save actual creatures
-        if game_state.do_i_need_to_save(self.drone_state.drone_id, creatures) || self.will_save {
+        if game_state.do_i_need_to_save(creatures) || self.will_save {
             self.will_save = true;
-            if self.drone_state.drone_y < 500 {
+            if self.y_i32() < 500 {
                 self.will_save = false;
             }
             self.log = self.log.clone() + " save!";
             println!("MOVE {} {} {} {}", next_x.round() as i32, 450, 0, self.log);
         } else {
             self.log = self.log.clone() + " searching";
-            println!("MOVE {} {} {} {}", next_x.round() as i32, y.round() as i32, light, self.log);
+            println!(
+                "MOVE {} {} {} {}",
+                next_x.round() as i32,
+                y.round() as i32,
+                light,
+                self.log
+            );
         }
 
-        eprintln!("id:{};will_save:{};direction:{};debounce:{},blip:{:?}", 
-                  self.drone_state.drone_id,
-                  self.will_save,
-                  self.direction,
-                  self.debounce,
-                  self.blip
-                  );
+        eprintln!(
+            "id:{};will_save:{};direction:{};debounce:{},blip:{:?}",
+            self.drone_state.drone_id, self.will_save, self.direction, self.debounce, self.blip
+        );
     }
 }
 
 fn get_drone_by_id<'a>(id: i32, drones: &'a mut Vec<DroneBehavior>) -> &'a mut DroneBehavior {
-    drones.iter_mut().find(|d| d.drone_state.drone_id == id).expect("id given by codingame")
+    drones
+        .iter_mut()
+        .find(|d| d.drone_state.drone_id == id)
+        .expect("id given by codingame")
 }
-
 
 impl GameState {
     fn get_my_drone_count(&self) -> usize {
@@ -333,27 +378,33 @@ impl GameState {
     }
 
     fn get_drone_scan(&self, drone_id: i32) -> Vec<Scan> {
-        return self.drone_scan
+        return self
+            .drone_scan
             .iter()
             .filter(|s| s.drone_id == drone_id)
             .cloned()
             .collect();
-    } 
+    }
 
     fn get_my_drones_scan(&self) -> Vec<Scan> {
         self.drone_scan
             .iter()
-            .filter(|s| self.my_drone.iter().filter(|d| d.drone_id == s.drone_id).count() > 0) 
+            .filter(|s| {
+                self.my_drone
+                    .iter()
+                    .filter(|d| d.drone_id == s.drone_id)
+                    .count()
+                    > 0
+            })
             .cloned()
             .collect()
-    } 
+    }
 
     fn is_four_of_a_kind(&self, fishes: &Vec<Scan>, creatures: &Vec<Creature>) -> bool {
-
         let mut a = 0;
         let mut b = 0;
         let mut c = 0;
-        
+
         let mut scanned: Vec<i32> = fishes.iter().map(|f| f.creature_id).collect();
         scanned.sort();
         scanned.dedup();
@@ -364,11 +415,11 @@ impl GameState {
                 CreatureType::Type0 => a += 1,
                 CreatureType::Type1 => b += 1,
                 CreatureType::Type2 => c += 1,
-                _ => (), 
+                _ => (),
             }
         }
-        
-        assert!(a <= 4 && b <= 4 && c <= 4, "fishes {:#?}" , scanned);
+
+        assert!(a <= 4 && b <= 4 && c <= 4, "fishes {:#?}", scanned);
 
         if a >= 4 || b >= 4 || c >= 4 {
             return true;
@@ -376,7 +427,7 @@ impl GameState {
         return false;
     }
 
-    fn do_i_need_to_save(&self, drone_id: i32, creatures: &Vec<Creature>) -> bool {
+    fn do_i_need_to_save(&self, creatures: &Vec<Creature>) -> bool {
         //if I have all fish from a type
         let my_fishes = self.get_my_drones_scan();
         if self.is_four_of_a_kind(&my_fishes, creatures) {
@@ -390,102 +441,94 @@ impl GameState {
         let mut my_fishes: Vec<i32> = my_fishes.iter().map(|f| f.creature_id).collect();
         my_fishes.sort();
         my_fishes.dedup();
-        
-        let fish_to_collect: Vec<(i32, CreatureType)> = creatures.iter()
+
+        let fish_to_collect: Vec<(i32, CreatureType)> = creatures
+            .iter()
             .map(|c| (c.id, c.creature_type))
-            .filter(|(c, t)| !my_fishes.contains(c))
+            .filter(|(c, _t)| !my_fishes.contains(c))
             .collect();
 
-        let type_0 = fish_to_collect.iter().filter(|(c, t)| *t == CreatureType::Type0).count();
-        let type_1 = fish_to_collect.iter().filter(|(c, t)| *t == CreatureType::Type1).count();
-        let type_2 = fish_to_collect.iter().filter(|(c, t)| *t == CreatureType::Type2).count();
+        let type_0 = fish_to_collect
+            .iter()
+            .filter(|(_c, t)| *t == CreatureType::Type0)
+            .count();
+        let type_1 = fish_to_collect
+            .iter()
+            .filter(|(_c, t)| *t == CreatureType::Type1)
+            .count();
+        let type_2 = fish_to_collect
+            .iter()
+            .filter(|(_c, t)| *t == CreatureType::Type2)
+            .count();
 
-        if type_0 < type_1 && type_0 < type_2 { return fish_to_collect.iter().filter(|(c, t)| *t == CreatureType::Type0).map(|x| x.0).collect() }
-        else if type_1 < type_0 && type_1 < type_2 { return fish_to_collect.iter().filter(|(c, t)| *t == CreatureType::Type1).map(|x| x.0).collect() }
-        else if type_2 < type_0 && type_2 < type_1 { return fish_to_collect.iter().filter(|(c, t)| *t == CreatureType::Type2).map(|x| x.0).collect() }
-        else { return fish_to_collect.iter().map(|x| x.0).collect() }
-    }
-}
-
-
-
-/**
- * Score points by scanning valuable fish faster than your opponent.
- **/ 
-fn main() {
-
-    let creatures = init();
-    let mut drones_behavior = Vec::new();
-
-    loop {
-
-        let game_state = get_game_state();
-
-        for i in 0..game_state.get_my_drone_count() {
-
-            let drone = game_state.my_drone.get(i).expect("plz codingame");
-            //eprintln!("my scan {:#?}", game_state.get_drone_scan(drone.drone_id));
-
-            //init or update
-            if drones_behavior.len() < game_state.get_my_drone_count() {
-                let mut d = DroneBehavior::new(drone.clone(), drones_behavior.len() as i32);
-                if drones_behavior.len() % 2 == 0 {
-                   d.direction = -1 * d.direction; 
-                }
-                drones_behavior.push(d.clone());
-            } 
-            let mut drone_behavior = get_drone_by_id(drone.drone_id, &mut drones_behavior);
-            drone_behavior.drone_state = drone.clone();
-            drone_behavior.behave(&game_state, &creatures);
+        if type_0 < type_1 && type_0 < type_2 {
+            return fish_to_collect
+                .iter()
+                .filter(|(_c, t)| *t == CreatureType::Type0)
+                .map(|x| x.0)
+                .collect();
+        } else if type_1 < type_0 && type_1 < type_2 {
+            return fish_to_collect
+                .iter()
+                .filter(|(_c, t)| *t == CreatureType::Type1)
+                .map(|x| x.0)
+                .collect();
+        } else if type_2 < type_0 && type_2 < type_1 {
+            return fish_to_collect
+                .iter()
+                .filter(|(_c, t)| *t == CreatureType::Type2)
+                .map(|x| x.0)
+                .collect();
+        } else {
+            return fish_to_collect.iter().map(|x| x.0).collect();
         }
     }
 }
 
-/*
-   Protocole de jeu
-   Entrées d'Initialisation
-   Première ligne : creatureCount un entier pour le nombre de créature en jeu.
-   Les creatureCount lignes suivantes : 3 entiers décrivants chaque créature :
-   creatureId l'id unique de la créature.
-   color (de 0 à 3) et type (de 0 à 2).
-   Entrées pour un tour de Jeu
-   myScore pour votre score actuel.
-   foeScore pour le score de votre adversaire.
+// ===================================================================================================================
+// ===================================================================================================================
+// Main ==============================================================================================================
+// ===================================================================================================================
+// ===================================================================================================================
 
-   myScanCount pour le nombre de vos scans.
-   Prochaines myScanCount lignes : creatureId l'identifiant de chaque créature scannée.
+fn main() {
+    let creatures = init();
+    let mut drones_behavior = Vec::new();
+    loop {
+        let game_state = get_game_state();
+        for i in 0..game_state.get_my_drone_count() {
+            let drone = game_state.my_drone.get(i).expect("plz codingame");
+            //init or update
+            fun_name(&mut drones_behavior, &game_state, drone, &creatures);
+        }
+    }
+}
 
-   foeScanCount pour le nombre de scans de votre adversaire.
-   Prochaines foeScanCount lignes : creatureId l'identifiant de chaque créature scannée.
+fn fun_name(
+    drones_behavior: &mut Vec<DroneBehavior>,
+    game_state: &GameState,
+    drone: &Drone,
+    creatures: &Vec<Creature>,
+) {
+    if drones_behavior.len() < game_state.get_my_drone_count() {
+        let mut d = DroneBehavior::new(drone.clone(), drones_behavior.len() as i32);
+        if drones_behavior.len() % 2 == 0 {
+            d.direction = -1 * d.direction;
+        }
+        drones_behavior.push(d.clone());
+    }
+    let drone_behavior = get_drone_by_id(drone.drone_id, drones_behavior);
+    drone_behavior.drone_state = drone.clone();
+    drone_behavior.behave(game_state, creatures);
+}
 
-   Pour votre drone :
-   droneId : l'identifiant de ce drone.
-   droneX et droneY : la position de ce drone.
-   battery : le niveau de batterie de ce drone.
-   Pour le drone de votre adversaire :
-   droneId : l'identifiant de ce drone.
-   droneX et droneY : la position de ce drone.
-   battery : le niveau de batterie de ce drone.
+// ===================================================================================================================
+// ===================================================================================================================
+// GET GAME INPUT ====================================================================================================
+// ===================================================================================================================
+// ===================================================================================================================
 
-   Pour chaque poisson :
-   creatureId : l'id unique de la créature.
-   creatureX et creatureY : la position de la créature.
-   creatureVx et creatureVy : la vitesse actuelle de la créature.
-   Les variables restantes peuvent être ignorées et seront utilisées dans des ligues ultérieures.
-   Sortie
-   Une ligne : une instruction valide pour votre drone :
-   MOVE x y light : fait bouger le drone vers (x,y), avec les moteurs allumés.
-   WAIT light. Les moteurs sont éteints. Le drone va couler mais peut toujours scanner les poissons aux alentours.
-   light à 1 pour activer la lumière augmentée, 0 sinon.
-   Contraintes
-   creatureCount = 12 pour cette ligue
-   myDroneCount = 1 pour cette ligue
-
-   Temps de réponse par tour ≤ 50ms
-   Temps de réponse pour le premier tour ≤ 1000ms
-   */
 fn init() -> Vec<Creature> {
-
     let mut creature = Vec::new();
 
     let mut input_line = String::new();
@@ -510,7 +553,6 @@ fn init() -> Vec<Creature> {
 }
 
 fn get_game_state() -> GameState {
-
     let mut input_line = String::new();
     io::stdin().read_line(&mut input_line).unwrap();
     let my_score = parse_input!(input_line, i32);
@@ -559,10 +601,9 @@ fn get_game_state() -> GameState {
         my_drone.push(Drone {
             drone_id,
             drone_x,
-            drone_y, 
+            drone_y,
             emergency,
-            battery, 
-
+            battery,
         });
     }
 
@@ -583,9 +624,9 @@ fn get_game_state() -> GameState {
         foe_drone.push(Drone {
             drone_id,
             drone_x,
-            drone_y, 
+            drone_y,
             emergency,
-            battery, 
+            battery,
         });
     }
 
@@ -622,8 +663,8 @@ fn get_game_state() -> GameState {
 
         visible_creature.push(VisibleCreature {
             creature_id,
-            creature_x ,
-            creature_y ,
+            creature_x,
+            creature_y,
             creature_vx,
             creature_vy,
         });
