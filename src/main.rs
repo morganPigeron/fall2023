@@ -1,5 +1,5 @@
 use itertools::Itertools;
-use std::{cmp::Ordering, f64::consts::PI, io};
+use std::{cmp::Ordering, f64::consts::PI, io, ops::Mul};
 
 macro_rules! parse_input {
     ($x:expr, $t:ident) => {
@@ -176,9 +176,9 @@ impl DroneBehavior {
         self.set_my_blip(game_state);
 
         // basic sinus movement
-        let a = 2_800f64; //amplitude
+        let a = 3_000f64; //amplitude
         let b = 2f64 * PI / 5_000f64; //period
-        let k = 6_200f64; //axe
+        let k = 6_500f64; //axe
 
         if self.x_i32() + 600 > 10000 {
             self.direction = -1;
@@ -224,7 +224,7 @@ impl DroneBehavior {
         //check if any visible creature is a monster
         let mut near_monsters = Vec::<&VisibleCreature>::new();
         for creature in &game_state.visible_creature {
-            if creature.is_a_monster(creatures) && !self.is_escaping {
+            if creature.is_a_monster(creatures) {
                 if !self.do_i_see_it(creature) {
                     continue;
                 }
@@ -232,87 +232,25 @@ impl DroneBehavior {
 
                 self.log = self.log.clone() + " " + &format!("{}!", creature.creature_id);
 
-                let monster_v: (f64, f64) = (
-                    (creature.creature_vx - creature.creature_x).into(),
-                    (creature.creature_vy - creature.creature_y).into(),
-                );
                 let monster_to_me: (f64, f64) = (
-                    (self.x_i32() - creature.creature_x).into(),
-                    (self.x_i32() - creature.creature_y).into(),
-                );
-                let escape_dir: (f64, f64) = (
-                    monster_v.0 + monster_to_me.0 + self.x_f64(),
-                    monster_v.1 + monster_to_me.1 + self.y_f64(),
+                    (creature.creature_x - self.x_i32()).mul(2).into(),
+                    (creature.creature_y - self.y_i32()).mul(2).into(),
                 );
 
-                next_x = (self.x_i32() + (escape_dir.0 as i32))
-                    .clamp(500, 9_500)
-                    .into();
-                y = (self.y_i32() + (escape_dir.1 as i32))
-                    .clamp(500, 9_500)
-                    .into();
+                let escape_pos: (f64, f64) = (
+                    self.x_f64() - monster_to_me.0,
+                    self.y_f64() - monster_to_me.1,
+                );
+
+                next_x = (escape_pos.0).clamp(500.0, 9_500.0);
+                y = (escape_pos.1).clamp(500.0, 9_500.0);
 
                 self.is_escaping = true;
                 self.escape_pos = (next_x as i32, y as i32);
 
                 self.debounce -= 5;
-                /*
-                match (
-                    self.drone_state.drone_x.cmp(&creature.creature_x),
-                    self.drone_state.drone_y.cmp(&creature.creature_y),
-                ) {
-                    (Ordering::Greater, Ordering::Greater) => {
-                        //check if we are on border
-                        if self.drone_state.drone_x > 9_500 {
-                            y = 10_000.0;
-                        }
-                        //eprintln!("Drone is to the right and below the monster!");
-                    }
-                    (Ordering::Greater, Ordering::Less) => {
-                        //check if we are on border
-                        if self.drone_state.drone_x > 9_500 {
-                            y = 0.0;
-                        }
-                        //eprintln!("Drone is to the right and above the monster!");
-                    }
-                    (Ordering::Less, Ordering::Greater) => {
-                        //check if we are on border
-                        if self.drone_state.drone_x < 500 {
-                            y = 10_000.0;
-                        }
-                        //eprintln!("Drone is to the left and below the monster!");
-                    }
-                    (Ordering::Less, Ordering::Less) => {
-                        //check if we are on border
-                        if self.drone_state.drone_x < 500 {
-                            y = 0.0;
-                        }
-                        //eprintln!("Drone is to the left and above the monster!");
-                    }
-                    _ => {
-                        // The drone is at the same horizontal or vertical position as the monster
-                        //eprintln!("Drone is at the same position as the monster!");
-                    }
-                }
-                */
             }
         }
-
-        //need to escape
-        /*
-        if near_monsters.len() > 1 {
-            //find smallest angle between each monsters
-            let drone_x = self.drone_state.drone_x;
-            let drone_y = self.drone_state.drone_y;
-            near_monsters.sort_by(|a, b| {
-                calculate_angle(a.creature_x as f64, a.creature_y as f64, drone_x.into(), drone_y.into())
-                    .partial_cmp(&calculate_angle(b.creature_x as f64, b.creature_y as f64, drone_x.into(), drone_y.into()))
-                    .unwrap()
-            });
-
-            eprintln!("sorted monster {:?} ", near_monsters.iter().map(|x| x.creature_id).collect::<Vec<i32>>());
-        }
-        */
 
         //check if i need to flash
         let mut light = 0;
